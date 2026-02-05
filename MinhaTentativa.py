@@ -1,42 +1,54 @@
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+import requests
 
 print("Aprendendo a usar  embendding")
 
-modelo = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-aulasDisponiveis =[
-    {
-        "id":1,
-        'titulo':"Introdução a Python",
-        'descricao':"Aprenda os fundamentos básicos  para programação em python "  
-    },  
-    {
-        "id":2,
-        'titulo':"Desenvolvimento  web",
-        'descricao':"Aula sobre desenvolvimento web com enfoque em HTML,CSS,JAVASCRIPT"  
-    },    
-    {
-        "id":3,
-        'titulo':" Minecraft  ensinando java",
-        'descricao':"Aprenda  java com minecraft"  
-    },  
-    {
-        "id":4,
-        'titulo':"Amoungus ",
-        'descricao':"SUS "  
-    },
-]
-print("Processando aulas: ")
-dadosAulas=[
-    f"{aula['titulo']}. {aula['descricao']}" 
-    for aula in aulasDisponiveis
-    ]
-embenddings = modelo.encode(dadosAulas)
-print(f"\nQuantidade de aulas disponíveis:{len(aulasDisponiveis)}")
-print(" Qual matéria vocÊ quer pesquisar sobre? ")
-materiaUsuário = input()
+def buscar_rea(assunto):
+    url = "https://api.mecred.c3sl.ufpr.br/public/elastic/search"
+    params = {
+        "indexes": "resources",
+        "query": assunto,
+        "limit": 40
+    }
 
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
+
+
+# TESTE
+resultados = buscar_rea("historia")
+
+# Verifica o tipo de retorno
+if isinstance(resultados, dict):
+    # Se for dicionário, pega a chave 'results'
+    items = resultados.get("results", [])
+elif isinstance(resultados, list):
+    # Se já for lista, usa diretamente
+    items = resultados
+else:
+    items = []
+
+for i, r in enumerate(items, 1):
+    print(f"{i}. {r.get('name')}")
+
+
+
+modelo = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+print("Processando aulas: ")
+print(f"\nQuantidade de aulas disponíveis:{len(items)}")
+textos_para_embedding = []
+for aula in items:
+    # Combina o nome e descrição (se houver) para melhor busca
+    texto = aula.get('name', '')
+    textos_para_embedding.append(texto)
+
+# Gera os embeddings com os textos
+embenddings = modelo.encode(textos_para_embedding)
+materiaUsuário = input()
 def buscar_materia(consulta_usuario,topn=3,similaridade_minima=0.3):
     embenddings_consulta =modelo.encode([consulta_usuario])
     similaridades= cosine_similarity(embenddings_consulta,embenddings)[0]
@@ -46,7 +58,7 @@ def buscar_materia(consulta_usuario,topn=3,similaridade_minima=0.3):
         similaridade =similaridades[indx]
         if similaridade>=similaridade_minima:
             resultado={
-                **aulasDisponiveis[indx],
+                **items[indx],
                 "relevancia":float(similaridade)
             }
             resultados.append(resultado)
@@ -59,8 +71,8 @@ print("\nResultados: ")
 resultadoConsulta= buscar_materia(materiaUsuário)
 if resultadoConsulta :
     for i,aula in enumerate(resultadoConsulta,1):
-        print(f"\n{i},[{aula['relevancia']:.2%}]{aula['titulo']}")
+        print(f"\n{i},[{aula['relevancia']:.2%}]{aula['name']}")
         print(f"ID:{aula['id']}")
-        print(f"{aula['descricao']}")
+       
 else:
     print ("Nenhuma aula encontrada")
