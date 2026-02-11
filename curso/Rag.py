@@ -12,52 +12,76 @@ def buscarReaMedcred(assunto):
     params = {
         "indexes":"resources",
         "query":assunto,
-        "limit":20
+        "limit":30
     }
     response = requests.get(url,params = params)
     response.raise_for_status()
     return response.json()
+def buscarReaEduplay(assunto):
+    url = "https://eduplay.rnp.br/api/v1/search"
+    params = {
+         "term":assunto,
+         "quantity":30,
+         "page":1,
+         "type":0,
+         "order":0
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
+
+def buscarReaAquarela(assunto):
+    return
     
 def retrieve (query:str, top_k:int=5):
     modelo = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-    dadosMedcredTexto= []
+
     dadosTodosTexto = []
     dadosTodosDicionario = []
     resultadoMEdcred = buscarReaMedcred(query)
     if isinstance(resultadoMEdcred, dict):
      dadosMedcredDicionario = resultadoMEdcred.get("results", [])
     elif isinstance(resultadoMEdcred, list):
-  
      dadosMedcredDicionario = resultadoMEdcred
     else:
      dadosMedcredDicionario = []
-    print(f"Resultado sem embbending{formatacaoDadosMedCred(dadosMedcredDicionario)}")
-    dadosTodosDicionario.append(dadosMedcredDicionario)
-    print(f"tamanhodadosmedcredDIcionario{len(dadosMedcredDicionario)}")
+
+    resultadoEduplay = buscarReaEduplay(query)
+    if isinstance(resultadoEduplay, dict):
+     dadosEduplayDicionario = resultadoEduplay.get("contents", [])
+    for item in dadosMedcredDicionario:
+        item['fonte'] ='medcred'
+        dadosTodosDicionario.append(item)
+    for item in dadosEduplayDicionario:
+        item['fonte'] ='eduplay'
+        dadosTodosDicionario.append(item)
+ 
     for dados in dadosMedcredDicionario:
-        nomematerialMed = dados.get('name',[])
-        dadosMedcredTexto.append(nomematerialMed)
-        dadosTodosTexto.append(dadosMedcredTexto)
-    print(f"tamanho medcredtexto{len(dadosMedcredTexto)}")
-    embbendingdadosREAs = modelo.encode(dadosMedcredTexto)
+        nomematerial = dados.get('name',[])
+        dadosTodosTexto.append(nomematerial)
+    for dados in dadosEduplayDicionario:
+        nomematerial = dados.get('name',[])
+        dadosTodosTexto.append(nomematerial)
+
+    embbendingdadosREAs = modelo.encode(dadosTodosTexto)
     embbendingConsulta = modelo.encode([query])
     
     similaridades = cosine_similarity(embbendingConsulta,embbendingdadosREAs)[0]
     indices_ordenados = np.argsort(similaridades)[::-1]
-    print(f"tamanho indice ord {len(indices_ordenados)}")
+
     topKtotal = []
-    print(len(topKtotal))
+ 
     for indx in indices_ordenados:
         similaridade = similaridades[indx]
         resultado = {
-        **dadosMedcredDicionario[indx],
+        **dadosTodosDicionario[indx],
         "relevancia":float(similaridade)
         }
         topKtotal.append(resultado)
-        print(len(topKtotal))
+        
         if len(topKtotal)>=top_k:
-            print(f"entrou break{len(topKtotal)}")
             break
+   
     return topKtotal
 
 def formatacaoDadosMedCred(listadados):
@@ -72,10 +96,46 @@ def formatacaoDadosMedCred(listadados):
         frasefinal.append(fraseMomentanea)
     return "\n".join (frasefinal)
 
+def formatacaoDadosEduplay(listadados):
+    frasefinal =[]
+    for dados in listadados:
+        nomeMaterial = dados.get('name','Sem título')
+        descricao = dados.get('description','Sem descricao')
+        contenttype = dados.get('contentType',"Desconhecido")
+        userOwner = dados.get('userOwner',{}).get('name','Desconhecido')
+        link = dados.get('embedUrl','Não possui')
+        fraseMomentanea = f"Título do material: {nomeMaterial}, descrição do material: {descricao},  tipo de material: {contenttype}, dono do material: {userOwner}, link do material: {link} \n"
+        frasefinal.append(fraseMomentanea)
+    return "\n".join(frasefinal)
 
+def formatacaotodos(listadados):
+   
+    frasefinal = []
+    for dados in listadados:
+
+        if dados.get('fonte') == 'medcred':
+            usuarioNome = dados.get('user',{}).get('name','Desconhecido')
+            nomematerial = dados.get('name','Sem título')
+            views = dados.get('views',"Não descrito")
+            likes = dados.get('likes',"Não descrito")
+            relevancia = dados.get('relevancia',"Erro")
+            fraseMomentanea = f" Título do material: {nomematerial}, views do material: {views}, likes do material: {likes}, dono do material: {usuarioNome}, relevância em relação ao tema: {relevancia} \n"
+            frasefinal.append(fraseMomentanea)
+        if dados.get('fonte') == 'eduplay': 
+            nomeMaterial = dados.get('name','Sem título')
+            descricao = dados.get('description','Sem descricao')
+            contenttype = dados.get('contentType',"Desconhecido")
+            userOwner = dados.get('userOwner',{}).get('name','Desconhecido')
+            link = dados.get('embedUrl','Não possui')
+            relevancia = dados.get('relevancia',"Erro")
+            fraseMomentanea = f"Título do material: {nomeMaterial}, descrição do material: {descricao},  tipo de material: {contenttype}, dono do material: {userOwner}, link do material: {link},relavância: {relevancia}\n"
+            frasefinal.append(fraseMomentanea)
+    return "\n".join(frasefinal)
 pedido =input()
+
 resultadoRetrieve = retrieve(pedido,5)
-print(f"Resultado final: {formatacaoDadosMedCred(resultadoRetrieve)}")
+
+print(f"Resultado final: \n {formatacaotodos(resultadoRetrieve)}")
 
 
     
