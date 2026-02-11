@@ -10,7 +10,7 @@ def buscar_rea(assunto):
     params = {
         "indexes": "resources",
         "query": assunto,
-        "limit": 40
+        "limit": 1
     }
 
     response = requests.get(url, params=params)
@@ -19,8 +19,8 @@ def buscar_rea(assunto):
 
 
 # TESTE
-resultados = buscar_rea("historia")
-
+resultados = buscar_rea("Saude Ambiental")
+print(f" resultados são entregados nesse formato : {resultados}")
 # Verifica o tipo de retorno
 if isinstance(resultados, dict):
     # Se for dicionário, pega a chave 'results'
